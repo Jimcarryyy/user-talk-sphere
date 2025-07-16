@@ -20,9 +20,11 @@ interface Message {
 interface ChatContextType {
   users: User[];
   messages: Message[];
+  isPolling: boolean;
   sendMessage: (receiverId: string, message: string) => void;
-  loadMessages: (userId: string) => Message[];
+  getMessagesForUser: (userId: string) => Message[];
   refreshMessages: () => void;
+  refreshUsers: () => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -50,68 +52,67 @@ const DEMO_USERS = [
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [isPolling, setIsPolling] = useState(false);
   const { user } = useAuth();
 
-  useEffect(() => {
-    // Load users (demo users + registered users)
-    const loadUsers = () => {
-      const registeredUsers = JSON.parse(localStorage.getItem('talkSphere_users') || '[]');
-      const allUsers = [
-        ...DEMO_USERS,
-        ...registeredUsers.map((u: any) => ({
-          id: u.id,
-          username: u.username,
-          email: u.email
-        }))
-      ];
-      
-      // Remove duplicates and current user
-      const uniqueUsers = allUsers.filter((u, index, self) => 
-        index === self.findIndex(t => t.id === u.id) && u.id !== user?.id
-      );
-      
-      setUsers(uniqueUsers);
-    };
+  const refreshUsers = () => {
+    if (!user) return;
+    
+    console.log('Refreshing users...');
+    const registeredUsers = JSON.parse(localStorage.getItem('talkSphere_users') || '[]');
+    const allUsers = [
+      ...DEMO_USERS,
+      ...registeredUsers.map((u: any) => ({
+        id: u.id,
+        username: u.username,
+        email: u.email
+      }))
+    ];
+    
+    // Remove duplicates and current user
+    const uniqueUsers = allUsers.filter((u, index, self) => 
+      index === self.findIndex(t => t.id === u.id) && u.id !== user?.id
+    );
+    
+    setUsers(uniqueUsers);
+  };
 
+  useEffect(() => {
     if (user) {
-      loadUsers();
+      refreshUsers();
     }
   }, [user]);
 
-  useEffect(() => {
-    // Load messages from localStorage
-    const loadMessages = () => {
-      const savedMessages = localStorage.getItem('talkSphere_messages');
-      if (savedMessages) {
-        const parsedMessages = JSON.parse(savedMessages);
-        setMessages(parsedMessages.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp)
-        })));
-      }
-    };
+  const refreshMessages = () => {
+    const savedMessages = localStorage.getItem('talkSphere_messages');
+    if (savedMessages) {
+      const parsedMessages = JSON.parse(savedMessages);
+      setMessages(parsedMessages.map((msg: any) => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp)
+      })));
+    }
+  };
 
-    loadMessages();
+  useEffect(() => {
+    refreshMessages();
   }, []);
 
   // Real-time message polling
   useEffect(() => {
     if (!user) return;
 
+    setIsPolling(true);
     const pollMessages = () => {
       console.log('Polling for new messages...');
-      const savedMessages = localStorage.getItem('talkSphere_messages');
-      if (savedMessages) {
-        const parsedMessages = JSON.parse(savedMessages);
-        setMessages(parsedMessages.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp)
-        })));
-      }
+      refreshMessages();
     };
 
     const interval = setInterval(pollMessages, 2000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      setIsPolling(false);
+    };
   }, [user]);
 
   const sendMessage = (receiverId: string, message: string) => {
@@ -134,7 +135,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     console.log('Message sent:', newMessage);
   };
 
-  const loadMessages = (userId: string): Message[] => {
+  const getMessagesForUser = (userId: string): Message[] => {
     if (!user) return [];
     
     return messages.filter(msg => 
@@ -143,19 +144,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     ).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
   };
 
-  const refreshMessages = () => {
-    const savedMessages = localStorage.getItem('talkSphere_messages');
-    if (savedMessages) {
-      const parsedMessages = JSON.parse(savedMessages);
-      setMessages(parsedMessages.map((msg: any) => ({
-        ...msg,
-        timestamp: new Date(msg.timestamp)
-      })));
-    }
-  };
-
   return (
-    <ChatContext.Provider value={{ users, messages, sendMessage, loadMessages, refreshMessages }}>
+    <ChatContext.Provider value={{ 
+      users, 
+      messages, 
+      isPolling,
+      sendMessage, 
+      getMessagesForUser, 
+      refreshMessages,
+      refreshUsers 
+    }}>
       {children}
     </ChatContext.Provider>
   );
