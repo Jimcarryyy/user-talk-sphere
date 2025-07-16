@@ -1,6 +1,12 @@
 
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+
+interface User {
+  id: string;
+  username: string;
+  email: string;
+}
 
 interface Message {
   id: string;
@@ -12,12 +18,11 @@ interface Message {
 }
 
 interface ChatContextType {
+  users: User[];
   messages: Message[];
-  users: Array<{ id: string; username: string }>;
-  sendMessage: (receiver_id: string, message: string) => Promise<void>;
-  getMessagesForUser: (userId: string) => Message[];
-  refreshUsers: () => void;
-  isPolling: boolean;
+  sendMessage: (receiverId: string, message: string) => void;
+  loadMessages: (userId: string) => Message[];
+  refreshMessages: () => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -34,31 +39,111 @@ interface ChatProviderProps {
   children: ReactNode;
 }
 
+// Demo users for chat (includes demo accounts + any registered users)
+const DEMO_USERS = [
+  { id: '1', username: 'Alice', email: 'alice@demo.com' },
+  { id: '2', username: 'Bob', email: 'bob@demo.com' },
+  { id: '3', username: 'Charlie', email: 'charlie@demo.com' },
+  { id: '4', username: 'Diana', email: 'diana@demo.com' },
+];
+
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
+  const [users, setUsers] = useState<User[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [users, setUsers] = useState<Array<{ id: string; username: string }>>([]);
-  const [isPolling, setIsPolling] = useState(false);
   const { user } = useAuth();
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load initial data
   useEffect(() => {
-    loadMessages();
-    loadUsers();
-  }, []);
+    // Load users (demo users + registered users)
+    const loadUsers = () => {
+      const registeredUsers = JSON.parse(localStorage.getItem('talkSphere_users') || '[]');
+      const allUsers = [
+        ...DEMO_USERS,
+        ...registeredUsers.map((u: any) => ({
+          id: u.id,
+          username: u.username,
+          email: u.email
+        }))
+      ];
+      
+      // Remove duplicates and current user
+      const uniqueUsers = allUsers.filter((u, index, self) => 
+        index === self.findIndex(t => t.id === u.id) && u.id !== user?.id
+      );
+      
+      setUsers(uniqueUsers);
+    };
 
-  // Start/stop polling based on user authentication
-  useEffect(() => {
     if (user) {
-      startPolling();
-    } else {
-      stopPolling();
+      loadUsers();
     }
-
-    return () => stopPolling();
   }, [user]);
 
-  const loadMessages = () => {
+  useEffect(() => {
+    // Load messages from localStorage
+    const loadMessages = () => {
+      const savedMessages = localStorage.getItem('talkSphere_messages');
+      if (savedMessages) {
+        const parsedMessages = JSON.parse(savedMessages);
+        setMessages(parsedMessages.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        })));
+      }
+    };
+
+    loadMessages();
+  }, []);
+
+  // Real-time message polling
+  useEffect(() => {
+    if (!user) return;
+
+    const pollMessages = () => {
+      console.log('Polling for new messages...');
+      const savedMessages = localStorage.getItem('talkSphere_messages');
+      if (savedMessages) {
+        const parsedMessages = JSON.parse(savedMessages);
+        setMessages(parsedMessages.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        })));
+      }
+    };
+
+    const interval = setInterval(pollMessages, 2000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  const sendMessage = (receiverId: string, message: string) => {
+    if (!user) return;
+
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      sender_id: user.id,
+      receiver_id: receiverId,
+      message,
+      timestamp: new Date(),
+      sender_username: user.username
+    };
+
+    const savedMessages = JSON.parse(localStorage.getItem('talkSphere_messages') || '[]');
+    const updatedMessages = [...savedMessages, newMessage];
+    localStorage.setItem('talkSphere_messages', JSON.stringify(updatedMessages));
+    
+    setMessages(prev => [...prev, newMessage]);
+    console.log('Message sent:', newMessage);
+  };
+
+  const loadMessages = (userId: string): Message[] => {
+    if (!user) return [];
+    
+    return messages.filter(msg => 
+      (msg.sender_id === user.id && msg.receiver_id === userId) ||
+      (msg.sender_id === userId && msg.receiver_id === user.id)
+    ).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+  };
+
+  const refreshMessages = () => {
     const savedMessages = localStorage.getItem('talkSphere_messages');
     if (savedMessages) {
       const parsedMessages = JSON.parse(savedMessages);
@@ -69,103 +154,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   };
 
-  const loadUsers = () => {
-    const savedUsers = localStorage.getItem('talkSphere_users');
-    if (savedUsers) {
-      setUsers(JSON.parse(savedUsers));
-    } else {
-      // Initialize with some demo users
-      const demoUsers = [
-        { id: '1', username: 'Alice' },
-        { id: '2', username: 'Bob' },
-        { id: '3', username: 'Charlie' },
-        { id: '4', username: 'Diana' }
-      ];
-      setUsers(demoUsers);
-      localStorage.setItem('talkSphere_users', JSON.stringify(demoUsers));
-    }
-  };
-
-  const startPolling = () => {
-    if (pollingIntervalRef.current) return;
-    
-    setIsPolling(true);
-    pollingIntervalRef.current = setInterval(() => {
-      loadMessages(); // Refresh messages every 2 seconds
-      console.log('Polling for new messages...');
-    }, 2000);
-  };
-
-  const stopPolling = () => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-    setIsPolling(false);
-  };
-
-  const refreshUsers = () => {
-    // Add current user to users list if not already present
-    if (user) {
-      const currentUsers = JSON.parse(localStorage.getItem('talkSphere_users') || '[]');
-      const userExists = currentUsers.some((u: any) => u.id === user.id);
-      
-      if (!userExists) {
-        const updatedUsers = [...currentUsers, user];
-        localStorage.setItem('talkSphere_users', JSON.stringify(updatedUsers));
-        setUsers(updatedUsers);
-      }
-    }
-  };
-
-  const sendMessage = async (receiver_id: string, message: string) => {
-    if (!user) throw new Error('User not logged in');
-
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      sender_id: user.id,
-      receiver_id,
-      message: message.trim(),
-      timestamp: new Date(),
-      sender_username: user.username
-    };
-
-    // Get current messages from localStorage (for real-time sync)
-    const currentMessages = JSON.parse(localStorage.getItem('talkSphere_messages') || '[]');
-    const updatedMessages = [...currentMessages, newMessage];
-    
-    // Update localStorage immediately
-    localStorage.setItem('talkSphere_messages', JSON.stringify(updatedMessages));
-    
-    // Update local state
-    setMessages(updatedMessages.map((msg: any) => ({
-      ...msg,
-      timestamp: new Date(msg.timestamp)
-    })));
-
-    console.log('Message sent:', newMessage);
-  };
-
-  const getMessagesForUser = (userId: string) => {
-    if (!user) return [];
-    
-    return messages
-      .filter(msg => 
-        (msg.sender_id === user.id && msg.receiver_id === userId) ||
-        (msg.sender_id === userId && msg.receiver_id === user.id)
-      )
-      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-  };
-
   return (
-    <ChatContext.Provider value={{
-      messages,
-      users,
-      sendMessage,
-      getMessagesForUser,
-      refreshUsers,
-      isPolling
-    }}>
+    <ChatContext.Provider value={{ users, messages, sendMessage, loadMessages, refreshMessages }}>
       {children}
     </ChatContext.Provider>
   );

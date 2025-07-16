@@ -4,12 +4,13 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 interface User {
   id: string;
   username: string;
+  email: string;
 }
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string) => Promise<void>;
-  signup: (username: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
 }
@@ -27,6 +28,14 @@ export const useAuth = () => {
 interface AuthProviderProps {
   children: ReactNode;
 }
+
+// Demo accounts for testing
+const DEMO_ACCOUNTS = [
+  { id: '1', username: 'Alice', email: 'alice@demo.com', password: 'password123' },
+  { id: '2', username: 'Bob', email: 'bob@demo.com', password: 'password123' },
+  { id: '3', username: 'Charlie', email: 'charlie@demo.com', password: 'password123' },
+  { id: '4', username: 'Diana', email: 'diana@demo.com', password: 'password123' },
+];
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -50,20 +59,85 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuth();
   }, []);
 
-  const signup = async (username: string) => {
+  const login = async (email: string, password: string) => {
     try {
-      // Check if username already exists
+      // Check demo accounts first
+      const demoUser = DEMO_ACCOUNTS.find(
+        account => account.email.toLowerCase() === email.toLowerCase() && account.password === password
+      );
+
+      if (demoUser) {
+        const user: User = {
+          id: demoUser.id,
+          username: demoUser.username,
+          email: demoUser.email
+        };
+        
+        localStorage.setItem('talkSphere_user', JSON.stringify(user));
+        setUser(user);
+        console.log('Demo user logged in:', user);
+        return;
+      }
+
+      // Check registered users
       const existingUsers = JSON.parse(localStorage.getItem('talkSphere_users') || '[]');
-      const userExists = existingUsers.some((u: User) => u.username.toLowerCase() === username.toLowerCase());
+      const existingUser = existingUsers.find((u: any) => 
+        u.email.toLowerCase() === email.toLowerCase() && u.password === password
+      );
       
-      if (userExists) {
+      if (!existingUser) {
+        throw new Error('Invalid email or password');
+      }
+      
+      const user: User = {
+        id: existingUser.id,
+        username: existingUser.username,
+        email: existingUser.email
+      };
+      
+      localStorage.setItem('talkSphere_user', JSON.stringify(user));
+      setUser(user);
+      console.log('User logged in:', user);
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
+  };
+
+  const signup = async (username: string, email: string, password: string) => {
+    try {
+      // Check if email already exists in demo accounts
+      const demoEmailExists = DEMO_ACCOUNTS.some(account => 
+        account.email.toLowerCase() === email.toLowerCase()
+      );
+      
+      if (demoEmailExists) {
+        throw new Error('Email already exists in demo accounts');
+      }
+
+      // Check if email or username already exists in registered users
+      const existingUsers = JSON.parse(localStorage.getItem('talkSphere_users') || '[]');
+      const emailExists = existingUsers.some((u: any) => 
+        u.email.toLowerCase() === email.toLowerCase()
+      );
+      const usernameExists = existingUsers.some((u: any) => 
+        u.username.toLowerCase() === username.toLowerCase()
+      );
+      
+      if (emailExists) {
+        throw new Error('Email already exists');
+      }
+      
+      if (usernameExists) {
         throw new Error('Username already exists');
       }
 
       // Create new user
-      const newUser: User = {
+      const newUser = {
         id: Date.now().toString(),
-        username: username.trim()
+        username: username.trim(),
+        email: email.trim(),
+        password: password
       };
       
       // Add to users list
@@ -71,33 +145,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.setItem('talkSphere_users', JSON.stringify(updatedUsers));
       
       // Save current user session
-      localStorage.setItem('talkSphere_user', JSON.stringify(newUser));
-      setUser(newUser);
+      const user: User = {
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email
+      };
       
-      console.log('User signed up:', newUser);
+      localStorage.setItem('talkSphere_user', JSON.stringify(user));
+      setUser(user);
+      
+      console.log('User signed up:', user);
     } catch (error) {
       console.error('Signup error:', error);
-      throw error;
-    }
-  };
-
-  const login = async (username: string) => {
-    try {
-      // Check if user exists
-      const existingUsers = JSON.parse(localStorage.getItem('talkSphere_users') || '[]');
-      const existingUser = existingUsers.find((u: User) => u.username.toLowerCase() === username.toLowerCase());
-      
-      if (!existingUser) {
-        throw new Error('User not found');
-      }
-      
-      // Save current user session
-      localStorage.setItem('talkSphere_user', JSON.stringify(existingUser));
-      setUser(existingUser);
-      
-      console.log('User logged in:', existingUser);
-    } catch (error) {
-      console.error('Login error:', error);
       throw error;
     }
   };
