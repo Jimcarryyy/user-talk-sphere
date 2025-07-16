@@ -9,6 +9,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   login: (username: string) => Promise<void>;
+  signup: (username: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
 }
@@ -49,19 +50,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuth();
   }, []);
 
-  const login = async (username: string) => {
+  const signup = async (username: string) => {
     try {
-      // Simulate user creation/login
+      // Check if username already exists
+      const existingUsers = JSON.parse(localStorage.getItem('talkSphere_users') || '[]');
+      const userExists = existingUsers.some((u: User) => u.username.toLowerCase() === username.toLowerCase());
+      
+      if (userExists) {
+        throw new Error('Username already exists');
+      }
+
+      // Create new user
       const newUser: User = {
         id: Date.now().toString(),
         username: username.trim()
       };
       
-      // Save to localStorage
+      // Add to users list
+      const updatedUsers = [...existingUsers, newUser];
+      localStorage.setItem('talkSphere_users', JSON.stringify(updatedUsers));
+      
+      // Save current user session
       localStorage.setItem('talkSphere_user', JSON.stringify(newUser));
       setUser(newUser);
       
-      console.log('User logged in:', newUser);
+      console.log('User signed up:', newUser);
+    } catch (error) {
+      console.error('Signup error:', error);
+      throw error;
+    }
+  };
+
+  const login = async (username: string) => {
+    try {
+      // Check if user exists
+      const existingUsers = JSON.parse(localStorage.getItem('talkSphere_users') || '[]');
+      const existingUser = existingUsers.find((u: User) => u.username.toLowerCase() === username.toLowerCase());
+      
+      if (!existingUser) {
+        throw new Error('User not found');
+      }
+      
+      // Save current user session
+      localStorage.setItem('talkSphere_user', JSON.stringify(existingUser));
+      setUser(existingUser);
+      
+      console.log('User logged in:', existingUser);
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -74,7 +108,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, signup, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

@@ -11,7 +11,8 @@ import { useToast } from '@/hooks/use-toast';
 const LoginScreen = () => {
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const [isSignup, setIsSignup] = useState(false);
+  const { login, signup } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -29,16 +30,24 @@ const LoginScreen = () => {
 
     setLoading(true);
     try {
-      await login(username);
-      toast({
-        title: "Welcome!",
-        description: `Successfully logged in as ${username}`,
-      });
+      if (isSignup) {
+        await signup(username);
+        toast({
+          title: "Account Created!",
+          description: `Welcome to TalkSphere, ${username}!`,
+        });
+      } else {
+        await login(username);
+        toast({
+          title: "Welcome back!",
+          description: `Successfully logged in as ${username}`,
+        });
+      }
       navigate('/users');
-    } catch (error) {
+    } catch (error: any) {
       toast({
-        title: "Login Failed",
-        description: "There was an error logging in. Please try again.",
+        title: isSignup ? "Signup Failed" : "Login Failed",
+        description: error.message || "Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -55,11 +64,15 @@ const LoginScreen = () => {
               <MessageCircle size={32} className="text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Welcome to TalkSphere</CardTitle>
-          <CardDescription>Enter your username to start chatting</CardDescription>
+          <CardTitle className="text-2xl font-bold">
+            {isSignup ? 'Join TalkSphere' : 'Welcome to TalkSphere'}
+          </CardTitle>
+          <CardDescription>
+            {isSignup ? 'Create your account to start chatting' : 'Sign in to continue chatting'}
+          </CardDescription>
         </CardHeader>
         
-        <CardContent>
+        <CardContent className="space-y-4">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <div className="relative">
@@ -83,13 +96,24 @@ const LoginScreen = () => {
               {loading ? (
                 <div className="flex items-center">
                   <div className="loading-spinner w-4 h-4 mr-2"></div>
-                  Logging in...
+                  {isSignup ? 'Creating Account...' : 'Signing In...'}
                 </div>
               ) : (
-                'Start Chatting'
+                isSignup ? 'Create Account' : 'Sign In'
               )}
             </Button>
           </form>
+
+          <div className="text-center">
+            <Button
+              variant="ghost"
+              onClick={() => setIsSignup(!isSignup)}
+              disabled={loading}
+              className="text-sm"
+            >
+              {isSignup ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
