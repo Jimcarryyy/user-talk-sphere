@@ -4,12 +4,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useChat } from '../contexts/ChatContext';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ArrowLeft, Send, MessageCircle } from 'lucide-react';
+import { ArrowLeft, MessageCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ChatBubble from '../components/ChatBubble';
 import MessageInput from '../components/MessageInput';
+import RealtimeIndicator from '../components/RealtimeIndicator';
 
 const ChatScreen = () => {
   const { userId } = useParams<{ userId: string }>();
@@ -59,26 +59,30 @@ const ChatScreen = () => {
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-primary/10 flex flex-col">
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-sm border-b border-grey-stroke/10 sticky top-0 z-10">
-        <div className="flex items-center px-4 py-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/users')}
-            className="mr-3"
-          >
-            <ArrowLeft size={20} />
-          </Button>
-          
-          <Avatar className="h-10 w-10 mr-3">
-            <AvatarFallback className="bg-primary/10 text-primary">
-              {chatUser.username.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          
-          <div>
-            <h1 className="font-semibold">{chatUser.username}</h1>
-            <p className="text-sm text-muted-foreground">Online</p>
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/users')}
+              className="mr-3"
+            >
+              <ArrowLeft size={20} />
+            </Button>
+            
+            <Avatar className="h-10 w-10 mr-3">
+              <AvatarFallback className="bg-primary/10 text-primary">
+                {chatUser.username.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            
+            <div>
+              <h1 className="font-semibold">{chatUser.username}</h1>
+              <p className="text-sm text-muted-foreground">Online</p>
+            </div>
           </div>
+          
+          <RealtimeIndicator />
         </div>
       </div>
 

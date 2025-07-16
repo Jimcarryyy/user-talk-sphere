@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { MessageCircle, LogOut, Users } from 'lucide-react';
+import RealtimeIndicator from '../components/RealtimeIndicator';
 
 const UserListScreen = () => {
   const { user, logout } = useAuth();
@@ -43,10 +44,13 @@ const UserListScreen = () => {
                 <p className="text-sm text-muted-foreground">Welcome, {user?.username}</p>
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={handleLogout}>
-              <LogOut size={16} className="mr-2" />
-              Logout
-            </Button>
+            <div className="flex items-center space-x-4">
+              <RealtimeIndicator />
+              <Button variant="outline" size="sm" onClick={handleLogout}>
+                <LogOut size={16} className="mr-2" />
+                Logout
+              </Button>
+            </div>
           </div>
         </div>
       </div>
